@@ -1,0 +1,934 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Backtest Report - BTCUSDT 2024</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+    <style>
+        body {
+            background-color: #131722;
+            color: #d1d4dc;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+        }
+        .tv-card {
+            background-color: #1e222d;
+            border: 1px solid #2a2e39;
+            border-radius: 8px;
+        }
+        .tv-table {
+            background-color: #1e222d;
+        }
+        .tv-table th {
+            background-color: #2a2e39;
+            color: #787b86;
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 11px;
+            letter-spacing: 0.5px;
+        }
+        .tv-table td {
+            border-bottom: 1px solid #2a2e39;
+        }
+        .tv-table tr:hover {
+            background-color: #2a2e39;
+        }
+        .metric-label {
+            color: #787b86;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        .metric-value {
+            color: #d1d4dc;
+            font-size: 20px;
+            font-weight: 600;
+        }
+        .positive {
+            color: #089981;
+        }
+        .negative {
+            color: #f23645;
+        }
+        .neutral {
+            color: #787b86;
+        }
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #1e222d;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #2a2e39;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #363a45;
+        }
+    </style>
+</head>
+<body class="p-6">
+    <div class="max-w-7xl mx-auto space-y-6">
+        <!-- Header -->
+        <div class="tv-card p-6">
+            <h1 class="text-3xl font-bold mb-2">BTCUSDT 2024 Backtest Report</h1>
+            <p class="text-sm text-gray-400">Vegas ADX Strategy - 16 Rules System</p>
+        </div>
+
+        <!-- Summary Metrics -->
+        <div class="tv-card p-6">
+            <h2 class="text-xl font-semibold mb-4">Performance Summary</h2>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-6">
+                <div>
+    <div class="metric-label">Net Profit</div>
+    <div class="metric-value positive">$757.37</div>
+</div>
+<div>
+    <div class="metric-label">Return %</div>
+    <div class="metric-value positive">7.57%</div>
+</div>
+<div>
+    <div class="metric-label">Max Drawdown</div>
+    <div class="metric-value negative">3.09%</div>
+</div>
+<div>
+    <div class="metric-label">Win Rate</div>
+    <div class="metric-value negative">47.1%</div>
+</div>
+<div>
+    <div class="metric-label">Total Trades</div>
+    <div class="metric-value neutral">34</div>
+</div>
+<div>
+    <div class="metric-label">Winners</div>
+    <div class="metric-value neutral">16</div>
+</div>
+<div>
+    <div class="metric-label">Losers</div>
+    <div class="metric-value neutral">18</div>
+</div>
+<div>
+    <div class="metric-label">Profit Factor</div>
+    <div class="metric-value positive">1.83</div>
+</div>
+<div>
+    <div class="metric-label">Sharpe Ratio</div>
+    <div class="metric-value positive">3.90</div>
+</div>
+<div>
+    <div class="metric-label">Avg Win</div>
+    <div class="metric-value positive">$104.48</div>
+</div>
+<div>
+    <div class="metric-label">Avg Loss</div>
+    <div class="metric-value negative">$-50.79</div>
+</div>
+<div>
+    <div class="metric-label">Total Fees</div>
+    <div class="metric-value negative">$86.08</div>
+</div>
+
+            </div>
+        </div>
+
+        <!-- Equity Curve -->
+        <div class="tv-card p-6">
+            <h2 class="text-xl font-semibold mb-4">Equity Curve</h2>
+            <div id="equityChart" style="width:100%; height:400px;"></div>
+        </div>
+
+        <!-- Drawdown Chart -->
+        <div class="tv-card p-6">
+            <h2 class="text-xl font-semibold mb-4">Underwater Drawdown</h2>
+            <div id="drawdownChart" style="width:100%; height:300px;"></div>
+        </div>
+
+        <!-- Monthly Returns Heatmap -->
+        <div class="tv-card p-6">
+            <h2 class="text-xl font-semibold mb-4">Monthly Returns (%)</h2>
+            <div id="monthlyHeatmap" style="width:100%; height:300px;"></div>
+        </div>
+
+        <!-- Trades Table -->
+        <div class="tv-card p-6">
+            <h2 class="text-xl font-semibold mb-4">Trade History (34 trades)</h2>
+            <div class="overflow-x-auto">
+                <table class="tv-table w-full text-sm">
+                    <thead>
+                        <tr>
+                            <th class="px-4 py-2 text-left">#</th>
+                            <th class="px-4 py-2 text-left">Type</th>
+                            <th class="px-4 py-2 text-left">Rule</th>
+                            <th class="px-4 py-2 text-left">Entry Time</th>
+                            <th class="px-4 py-2 text-right">Entry Price</th>
+                            <th class="px-4 py-2 text-left">Exit Time</th>
+                            <th class="px-4 py-2 text-right">Exit Price</th>
+                            <th class="px-4 py-2 text-left">Exit</th>
+                            <th class="px-4 py-2 text-right">PnL USDT</th>
+                            <th class="px-4 py-2 text-right">PnL %</th>
+                            <th class="px-4 py-2 text-right">Fees</th>
+                            <th class="px-4 py-2 text-right">Hold (h)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+    <td class="px-4 py-2">1</td>
+    <td class="px-4 py-2 text-blue-400 font-semibold">LONG</td>
+    <td class="px-4 py-2">R7</td>
+    <td class="px-4 py-2">2024-01-08 16:45:00</td>
+    <td class="px-4 py-2 text-right">44939.20</td>
+    <td class="px-4 py-2">2024-01-12 22:00:00</td>
+    <td class="px-4 py-2 text-right">43158.10</td>
+    <td class="px-4 py-2">SL</td>
+    <td class="px-4 py-2 text-right negative">-45.67</td>
+    <td class="px-4 py-2 text-right negative">-3.96%</td>
+    <td class="px-4 py-2 text-right">1.67</td>
+    <td class="px-4 py-2 text-right">101.3</td>
+</tr>
+<tr>
+    <td class="px-4 py-2">2</td>
+    <td class="px-4 py-2 text-blue-400 font-semibold">LONG</td>
+    <td class="px-4 py-2">R1</td>
+    <td class="px-4 py-2">2024-01-19 21:30:00</td>
+    <td class="px-4 py-2 text-right">41709.10</td>
+    <td class="px-4 py-2">2024-01-22 18:45:00</td>
+    <td class="px-4 py-2 text-right">40300.00</td>
+    <td class="px-4 py-2">SL</td>
+    <td class="px-4 py-2 text-right negative">-48.04</td>
+    <td class="px-4 py-2 text-right negative">-3.38%</td>
+    <td class="px-4 py-2 text-right">2.04</td>
+    <td class="px-4 py-2 text-right">69.3</td>
+</tr>
+<tr>
+    <td class="px-4 py-2">3</td>
+    <td class="px-4 py-2 text-blue-400 font-semibold">LONG</td>
+    <td class="px-4 py-2">R1</td>
+    <td class="px-4 py-2">2024-01-24 08:45:00</td>
+    <td class="px-4 py-2 text-right">39948.60</td>
+    <td class="px-4 py-2">2024-01-29 16:30:00</td>
+    <td class="px-4 py-2 text-right">43176.88</td>
+    <td class="px-4 py-2">TP</td>
+    <td class="px-4 py-2 text-right positive">95.46</td>
+    <td class="px-4 py-2 text-right positive">8.08%</td>
+    <td class="px-4 py-2 text-right">1.14</td>
+    <td class="px-4 py-2 text-right">127.8</td>
+</tr>
+<tr>
+    <td class="px-4 py-2">4</td>
+    <td class="px-4 py-2 text-blue-400 font-semibold">LONG</td>
+    <td class="px-4 py-2">R1</td>
+    <td class="px-4 py-2">2024-02-01 16:00:00</td>
+    <td class="px-4 py-2 text-right">42606.90</td>
+    <td class="px-4 py-2">2024-02-07 21:15:00</td>
+    <td class="px-4 py-2 text-right">44309.13</td>
+    <td class="px-4 py-2">TP</td>
+    <td class="px-4 py-2 text-right positive">94.30</td>
+    <td class="px-4 py-2 text-right positive">4.00%</td>
+    <td class="px-4 py-2 text-right">2.30</td>
+    <td class="px-4 py-2 text-right">149.3</td>
+</tr>
+<tr>
+    <td class="px-4 py-2">5</td>
+    <td class="px-4 py-2 text-blue-400 font-semibold">LONG</td>
+    <td class="px-4 py-2">R7</td>
+    <td class="px-4 py-2">2024-02-09 08:00:00</td>
+    <td class="px-4 py-2 text-right">46328.00</td>
+    <td class="px-4 py-2">2024-02-23 08:15:00</td>
+    <td class="px-4 py-2 text-right">51086.30</td>
+    <td class="px-4 py-2">SL</td>
+    <td class="px-4 py-2 text-right positive">211.63</td>
+    <td class="px-4 py-2 text-right positive">10.27%</td>
+    <td class="px-4 py-2 text-right">3.14</td>
+    <td class="px-4 py-2 text-right">336.3</td>
+</tr>
+<tr>
+    <td class="px-4 py-2">6</td>
+    <td class="px-4 py-2 text-blue-400 font-semibold">LONG</td>
+    <td class="px-4 py-2">R7</td>
+    <td class="px-4 py-2">2024-02-27 13:30:00</td>
+    <td class="px-4 py-2 text-right">56950.80</td>
+    <td class="px-4 py-2">2024-03-11 07:00:00</td>
+    <td class="px-4 py-2 text-right">70815.89</td>
+    <td class="px-4 py-2">TP</td>
+    <td class="px-4 py-2 text-right positive">105.39</td>
+    <td class="px-4 py-2 text-right positive">24.35%</td>
+    <td class="px-4 py-2 text-right">0.41</td>
+    <td class="px-4 py-2 text-right">305.5</td>
+</tr>
+<tr>
+    <td class="px-4 py-2">7</td>
+    <td class="px-4 py-2 text-blue-400 font-semibold">LONG</td>
+    <td class="px-4 py-2">R1</td>
+    <td class="px-4 py-2">2024-03-24 14:00:00</td>
+    <td class="px-4 py-2 text-right">65593.90</td>
+    <td class="px-4 py-2">2024-04-07 14:15:00</td>
+    <td class="px-4 py-2 text-right">69308.70</td>
+    <td class="px-4 py-2">SL</td>
+    <td class="px-4 py-2 text-right positive">196.13</td>
+    <td class="px-4 py-2 text-right positive">5.66%</td>
+    <td class="px-4 py-2 text-right">5.34</td>
+    <td class="px-4 py-2 text-right">336.3</td>
+</tr>
+<tr>
+    <td class="px-4 py-2">8</td>
+    <td class="px-4 py-2 text-blue-400 font-semibold">LONG</td>
+    <td class="px-4 py-2">R7</td>
+    <td class="px-4 py-2">2024-04-07 22:30:00</td>
+    <td class="px-4 py-2 text-right">69334.10</td>
+    <td class="px-4 py-2">2024-04-12 17:15:00</td>
+    <td class="px-4 py-2 text-right">67525.00</td>
+    <td class="px-4 py-2">SL</td>
+    <td class="px-4 py-2 text-right negative">-44.41</td>
+    <td class="px-4 py-2 text-right negative">-2.61%</td>
+    <td class="px-4 py-2 text-right">2.41</td>
+    <td class="px-4 py-2 text-right">114.8</td>
+</tr>
+<tr>
+    <td class="px-4 py-2">9</td>
+    <td class="px-4 py-2 text-blue-400 font-semibold">LONG</td>
+    <td class="px-4 py-2">R1</td>
+    <td class="px-4 py-2">2024-04-18 16:15:00</td>
+    <td class="px-4 py-2 text-right">63766.00</td>
+    <td class="px-4 py-2">2024-04-19 02:30:00</td>
+    <td class="px-4 py-2 text-right">59625.00</td>
+    <td class="px-4 py-2">SL</td>
+    <td class="px-4 py-2 text-right negative">-42.97</td>
+    <td class="px-4 py-2 text-right negative">-6.49%</td>
+    <td class="px-4 py-2 text-right">0.97</td>
+    <td class="px-4 py-2 text-right">10.3</td>
+</tr>
+<tr>
+    <td class="px-4 py-2">10</td>
+    <td class="px-4 py-2 text-blue-400 font-semibold">LONG</td>
+    <td class="px-4 py-2">R1</td>
+    <td class="px-4 py-2">2024-04-19 10:45:00</td>
+    <td class="px-4 py-2 text-right">64754.30</td>
+    <td class="px-4 py-2">2024-04-30 19:45:00</td>
+    <td class="px-4 py-2 text-right">59541.00</td>
+    <td class="px-4 py-2">SL</td>
+    <td class="px-4 py-2 text-right negative">-48.89</td>
+    <td class="px-4 py-2 text-right negative">-8.05%</td>
+    <td class="px-4 py-2 text-right">0.89</td>
+    <td class="px-4 py-2 text-right">273.0</td>
+</tr>
+<tr>
+    <td class="px-4 py-2">11</td>
+    <td class="px-4 py-2 text-blue-400 font-semibold">LONG</td>
+    <td class="px-4 py-2">R1</td>
+    <td class="px-4 py-2">2024-05-02 16:15:00</td>
+    <td class="px-4 py-2 text-right">59119.90</td>
+    <td class="px-4 py-2">2024-05-06 08:15:00</td>
+    <td class="px-4 py-2 text-right">65058.96</td>
+    <td class="px-4 py-2">TP</td>
+    <td class="px-4 py-2 text-right positive">109.36</td>
+    <td class="px-4 py-2 text-right positive">10.05%</td>
+    <td class="px-4 py-2 text-right">1.04</td>
+    <td class="px-4 py-2 text-right">88.0</td>
+</tr>
+<tr>
+    <td class="px-4 py-2">12</td>
+    <td class="px-4 py-2 text-blue-400 font-semibold">LONG</td>
+    <td class="px-4 py-2">R7</td>
+    <td class="px-4 py-2">2024-05-16 13:45:00</td>
+    <td class="px-4 py-2 text-right">66299.90</td>
+    <td class="px-4 py-2">2024-05-30 14:00:00</td>
+    <td class="px-4 py-2 text-right">68510.00</td>
+    <td class="px-4 py-2">SL</td>
+    <td class="px-4 py-2 text-right positive">19.63</td>
+    <td class="px-4 py-2 text-right positive">3.33%</td>
+    <td class="px-4 py-2 text-right">0.92</td>
+    <td class="px-4 py-2 text-right">336.3</td>
+</tr>
+<tr>
+    <td class="px-4 py-2">13</td>
+    <td class="px-4 py-2 text-blue-400 font-semibold">LONG</td>
+    <td class="px-4 py-2">R7</td>
+    <td class="px-4 py-2">2024-06-05 07:30:00</td>
+    <td class="px-4 py-2 text-right">71400.00</td>
+    <td class="px-4 py-2">2024-06-07 18:00:00</td>
+    <td class="px-4 py-2 text-right">68595.50</td>
+    <td class="px-4 py-2">SL</td>
+    <td class="px-4 py-2 text-right negative">-43.60</td>
+    <td class="px-4 py-2 text-right negative">-3.93%</td>
+    <td class="px-4 py-2 text-right">1.60</td>
+    <td class="px-4 py-2 text-right">58.5</td>
+</tr>
+<tr>
+    <td class="px-4 py-2">14</td>
+    <td class="px-4 py-2 text-blue-400 font-semibold">LONG</td>
+    <td class="px-4 py-2">R1</td>
+    <td class="px-4 py-2">2024-06-12 11:45:00</td>
+    <td class="px-4 py-2 text-right">67789.90</td>
+    <td class="px-4 py-2">2024-06-14 16:00:00</td>
+    <td class="px-4 py-2 text-right">66000.00</td>
+    <td class="px-4 py-2">SL</td>
+    <td class="px-4 py-2 text-right negative">-48.61</td>
+    <td class="px-4 py-2 text-right negative">-2.64%</td>
+    <td class="px-4 py-2 text-right">2.61</td>
+    <td class="px-4 py-2 text-right">52.3</td>
+</tr>
+<tr>
+    <td class="px-4 py-2">15</td>
+    <td class="px-4 py-2 text-blue-400 font-semibold">LONG</td>
+    <td class="px-4 py-2">R1</td>
+    <td class="px-4 py-2">2024-06-16 12:00:00</td>
+    <td class="px-4 py-2 text-right">66473.50</td>
+    <td class="px-4 py-2">2024-06-17 09:45:00</td>
+    <td class="px-4 py-2 text-right">65801.00</td>
+    <td class="px-4 py-2">SL</td>
+    <td class="px-4 py-2 text-right negative">-55.12</td>
+    <td class="px-4 py-2 text-right negative">-1.01%</td>
+    <td class="px-4 py-2 text-right">7.12</td>
+    <td class="px-4 py-2 text-right">21.8</td>
+</tr>
+<tr>
+    <td class="px-4 py-2">16</td>
+    <td class="px-4 py-2 text-blue-400 font-semibold">LONG</td>
+    <td class="px-4 py-2">R1</td>
+    <td class="px-4 py-2">2024-06-27 12:45:00</td>
+    <td class="px-4 py-2 text-right">61342.90</td>
+    <td class="px-4 py-2">2024-06-28 19:15:00</td>
+    <td class="px-4 py-2 text-right">60605.00</td>
+    <td class="px-4 py-2">SL</td>
+    <td class="px-4 py-2 text-right negative">-53.99</td>
+    <td class="px-4 py-2 text-right negative">-1.20%</td>
+    <td class="px-4 py-2 text-right">5.99</td>
+    <td class="px-4 py-2 text-right">30.5</td>
+</tr>
+<tr>
+    <td class="px-4 py-2">17</td>
+    <td class="px-4 py-2 text-blue-400 font-semibold">LONG</td>
+    <td class="px-4 py-2">R7</td>
+    <td class="px-4 py-2">2024-07-01 12:30:00</td>
+    <td class="px-4 py-2 text-right">62840.30</td>
+    <td class="px-4 py-2">2024-07-03 03:15:00</td>
+    <td class="px-4 py-2 text-right">60705.00</td>
+    <td class="px-4 py-2">SL</td>
+    <td class="px-4 py-2 text-right negative">-50.12</td>
+    <td class="px-4 py-2 text-right negative">-3.40%</td>
+    <td class="px-4 py-2 text-right">2.12</td>
+    <td class="px-4 py-2 text-right">38.8</td>
+</tr>
+<tr>
+    <td class="px-4 py-2">18</td>
+    <td class="px-4 py-2 text-blue-400 font-semibold">LONG</td>
+    <td class="px-4 py-2">R7</td>
+    <td class="px-4 py-2">2024-07-10 16:15:00</td>
+    <td class="px-4 py-2 text-right">57927.50</td>
+    <td class="px-4 py-2">2024-07-12 01:15:00</td>
+    <td class="px-4 py-2 text-right">56862.90</td>
+    <td class="px-4 py-2">SL</td>
+    <td class="px-4 py-2 text-right negative">-108.16</td>
+    <td class="px-4 py-2 text-right negative">-1.84%</td>
+    <td class="px-4 py-2 text-right">8.16</td>
+    <td class="px-4 py-2 text-right">33.0</td>
+</tr>
+<tr>
+    <td class="px-4 py-2">19</td>
+    <td class="px-4 py-2 text-blue-400 font-semibold">LONG</td>
+    <td class="px-4 py-2">R1</td>
+    <td class="px-4 py-2">2024-07-12 18:30:00</td>
+    <td class="px-4 py-2 text-right">58384.70</td>
+    <td class="px-4 py-2">2024-07-15 03:45:00</td>
+    <td class="px-4 py-2 text-right">62719.28</td>
+    <td class="px-4 py-2">TP</td>
+    <td class="px-4 py-2 text-right positive">104.45</td>
+    <td class="px-4 py-2 text-right positive">7.42%</td>
+    <td class="px-4 py-2 text-right">1.35</td>
+    <td class="px-4 py-2 text-right">57.3</td>
+</tr>
+<tr>
+    <td class="px-4 py-2">20</td>
+    <td class="px-4 py-2 text-blue-400 font-semibold">LONG</td>
+    <td class="px-4 py-2">R7</td>
+    <td class="px-4 py-2">2024-07-17 09:30:00</td>
+    <td class="px-4 py-2 text-right">65347.10</td>
+    <td class="px-4 py-2">2024-07-31 09:45:00</td>
+    <td class="px-4 py-2 text-right">66230.00</td>
+    <td class="px-4 py-2">SL</td>
+    <td class="px-4 py-2 text-right positive">11.00</td>
+    <td class="px-4 py-2 text-right positive">1.35%</td>
+    <td class="px-4 py-2 text-right">1.37</td>
+    <td class="px-4 py-2 text-right">336.3</td>
+</tr>
+<tr>
+    <td class="px-4 py-2">21</td>
+    <td class="px-4 py-2 text-blue-400 font-semibold">LONG</td>
+    <td class="px-4 py-2">R7</td>
+    <td class="px-4 py-2">2024-08-08 19:00:00</td>
+    <td class="px-4 py-2 text-right">59599.10</td>
+    <td class="px-4 py-2">2024-08-22 19:15:00</td>
+    <td class="px-4 py-2 text-right">60193.80</td>
+    <td class="px-4 py-2">SL</td>
+    <td class="px-4 py-2 text-right positive">4.78</td>
+    <td class="px-4 py-2 text-right positive">1.00%</td>
+    <td class="px-4 py-2 text-right">0.84</td>
+    <td class="px-4 py-2 text-right">336.3</td>
+</tr>
+<tr>
+    <td class="px-4 py-2">22</td>
+    <td class="px-4 py-2 text-blue-400 font-semibold">LONG</td>
+    <td class="px-4 py-2">R7</td>
+    <td class="px-4 py-2">2024-08-24 16:15:00</td>
+    <td class="px-4 py-2 text-right">64250.90</td>
+    <td class="px-4 py-2">2024-08-27 21:30:00</td>
+    <td class="px-4 py-2 text-right">60651.60</td>
+    <td class="px-4 py-2">SL</td>
+    <td class="px-4 py-2 text-right negative">-43.12</td>
+    <td class="px-4 py-2 text-right negative">-5.60%</td>
+    <td class="px-4 py-2 text-right">1.12</td>
+    <td class="px-4 py-2 text-right">77.3</td>
+</tr>
+<tr>
+    <td class="px-4 py-2">23</td>
+    <td class="px-4 py-2 text-blue-400 font-semibold">LONG</td>
+    <td class="px-4 py-2">R1</td>
+    <td class="px-4 py-2">2024-09-02 12:15:00</td>
+    <td class="px-4 py-2 text-right">58372.20</td>
+    <td class="px-4 py-2">2024-09-04 01:00:00</td>
+    <td class="px-4 py-2 text-right">57093.00</td>
+    <td class="px-4 py-2">SL</td>
+    <td class="px-4 py-2 text-right negative">-44.87</td>
+    <td class="px-4 py-2 text-right negative">-2.19%</td>
+    <td class="px-4 py-2 text-right">2.87</td>
+    <td class="px-4 py-2 text-right">36.8</td>
+</tr>
+<tr>
+    <td class="px-4 py-2">24</td>
+    <td class="px-4 py-2 text-blue-400 font-semibold">LONG</td>
+    <td class="px-4 py-2">R1</td>
+    <td class="px-4 py-2">2024-09-08 10:00:00</td>
+    <td class="px-4 py-2 text-right">54553.90</td>
+    <td class="px-4 py-2">2024-09-08 15:45:00</td>
+    <td class="px-4 py-2 text-right">53725.00</td>
+    <td class="px-4 py-2">SL</td>
+    <td class="px-4 py-2 text-right negative">-48.34</td>
+    <td class="px-4 py-2 text-right negative">-1.52%</td>
+    <td class="px-4 py-2 text-right">4.34</td>
+    <td class="px-4 py-2 text-right">5.8</td>
+</tr>
+<tr>
+    <td class="px-4 py-2">25</td>
+    <td class="px-4 py-2 text-blue-400 font-semibold">LONG</td>
+    <td class="px-4 py-2">R1</td>
+    <td class="px-4 py-2">2024-09-09 11:15:00</td>
+    <td class="px-4 py-2 text-right">55296.90</td>
+    <td class="px-4 py-2">2024-09-13 15:30:00</td>
+    <td class="px-4 py-2 text-right">59207.82</td>
+    <td class="px-4 py-2">TP</td>
+    <td class="px-4 py-2 text-right positive">95.30</td>
+    <td class="px-4 py-2 text-right positive">7.07%</td>
+    <td class="px-4 py-2 text-right">1.30</td>
+    <td class="px-4 py-2 text-right">100.3</td>
+</tr>
+<tr>
+    <td class="px-4 py-2">26</td>
+    <td class="px-4 py-2 text-blue-400 font-semibold">LONG</td>
+    <td class="px-4 py-2">R7</td>
+    <td class="px-4 py-2">2024-09-13 20:15:00</td>
+    <td class="px-4 py-2 text-right">59791.60</td>
+    <td class="px-4 py-2">2024-09-27 20:30:00</td>
+    <td class="px-4 py-2 text-right">65839.80</td>
+    <td class="px-4 py-2">SL</td>
+    <td class="px-4 py-2 text-right positive">240.11</td>
+    <td class="px-4 py-2 text-right positive">10.12%</td>
+    <td class="px-4 py-2 text-right">3.61</td>
+    <td class="px-4 py-2 text-right">336.3</td>
+</tr>
+<tr>
+    <td class="px-4 py-2">27</td>
+    <td class="px-4 py-2 text-blue-400 font-semibold">LONG</td>
+    <td class="px-4 py-2">R7</td>
+    <td class="px-4 py-2">2024-09-28 10:00:00</td>
+    <td class="px-4 py-2 text-right">65660.00</td>
+    <td class="px-4 py-2">2024-09-30 01:45:00</td>
+    <td class="px-4 py-2 text-right">64788.00</td>
+    <td class="px-4 py-2">SL</td>
+    <td class="px-4 py-2 text-right negative">-48.97</td>
+    <td class="px-4 py-2 text-right negative">-1.33%</td>
+    <td class="px-4 py-2 text-right">4.97</td>
+    <td class="px-4 py-2 text-right">39.8</td>
+</tr>
+<tr>
+    <td class="px-4 py-2">28</td>
+    <td class="px-4 py-2 text-blue-400 font-semibold">LONG</td>
+    <td class="px-4 py-2">R1</td>
+    <td class="px-4 py-2">2024-10-05 12:15:00</td>
+    <td class="px-4 py-2 text-right">62214.00</td>
+    <td class="px-4 py-2">2024-10-09 20:45:00</td>
+    <td class="px-4 py-2 text-right">60700.50</td>
+    <td class="px-4 py-2">SL</td>
+    <td class="px-4 py-2 text-right negative">-44.59</td>
+    <td class="px-4 py-2 text-right negative">-2.43%</td>
+    <td class="px-4 py-2 text-right">2.59</td>
+    <td class="px-4 py-2 text-right">104.5</td>
+</tr>
+<tr>
+    <td class="px-4 py-2">29</td>
+    <td class="px-4 py-2 text-blue-400 font-semibold">LONG</td>
+    <td class="px-4 py-2">R1</td>
+    <td class="px-4 py-2">2024-10-11 06:15:00</td>
+    <td class="px-4 py-2 text-right">60711.90</td>
+    <td class="px-4 py-2">2024-10-14 09:45:00</td>
+    <td class="px-4 py-2 text-right">64879.27</td>
+    <td class="px-4 py-2">TP</td>
+    <td class="px-4 py-2 text-right positive">113.41</td>
+    <td class="px-4 py-2 text-right positive">6.86%</td>
+    <td class="px-4 py-2 text-right">1.59</td>
+    <td class="px-4 py-2 text-right">75.5</td>
+</tr>
+<tr>
+    <td class="px-4 py-2">30</td>
+    <td class="px-4 py-2 text-blue-400 font-semibold">LONG</td>
+    <td class="px-4 py-2">R7</td>
+    <td class="px-4 py-2">2024-10-14 12:30:00</td>
+    <td class="px-4 py-2 text-right">64882.00</td>
+    <td class="px-4 py-2">2024-10-28 12:45:00</td>
+    <td class="px-4 py-2 text-right">68881.00</td>
+    <td class="px-4 py-2">SL</td>
+    <td class="px-4 py-2 text-right positive">136.33</td>
+    <td class="px-4 py-2 text-right positive">6.16%</td>
+    <td class="px-4 py-2 text-right">3.40</td>
+    <td class="px-4 py-2 text-right">336.3</td>
+</tr>
+<tr>
+    <td class="px-4 py-2">31</td>
+    <td class="px-4 py-2 text-blue-400 font-semibold">LONG</td>
+    <td class="px-4 py-2">R7</td>
+    <td class="px-4 py-2">2024-10-30 16:15:00</td>
+    <td class="px-4 py-2 text-right">72031.80</td>
+    <td class="px-4 py-2">2024-10-31 14:00:00</td>
+    <td class="px-4 py-2 text-right">70803.00</td>
+    <td class="px-4 py-2">SL</td>
+    <td class="px-4 py-2 text-right negative">-45.69</td>
+    <td class="px-4 py-2 text-right negative">-1.71%</td>
+    <td class="px-4 py-2 text-right">3.69</td>
+    <td class="px-4 py-2 text-right">21.8</td>
+</tr>
+<tr>
+    <td class="px-4 py-2">32</td>
+    <td class="px-4 py-2 text-blue-400 font-semibold">LONG</td>
+    <td class="px-4 py-2">R7</td>
+    <td class="px-4 py-2">2024-11-12 12:00:00</td>
+    <td class="px-4 py-2 text-right">87777.80</td>
+    <td class="px-4 py-2">2024-11-26 12:15:00</td>
+    <td class="px-4 py-2 text-right">92308.70</td>
+    <td class="px-4 py-2">SL</td>
+    <td class="px-4 py-2 text-right positive">25.27</td>
+    <td class="px-4 py-2 text-right positive">5.16%</td>
+    <td class="px-4 py-2 text-right">0.76</td>
+    <td class="px-4 py-2 text-right">336.3</td>
+</tr>
+<tr>
+    <td class="px-4 py-2">33</td>
+    <td class="px-4 py-2 text-blue-400 font-semibold">LONG</td>
+    <td class="px-4 py-2">R1</td>
+    <td class="px-4 py-2">2024-12-11 08:00:00</td>
+    <td class="px-4 py-2 text-right">97804.80</td>
+    <td class="px-4 py-2">2024-12-16 00:30:00</td>
+    <td class="px-4 py-2 text-right">105945.19</td>
+    <td class="px-4 py-2">TP</td>
+    <td class="px-4 py-2 text-right positive">109.14</td>
+    <td class="px-4 py-2 text-right positive">8.32%</td>
+    <td class="px-4 py-2 text-right">1.26</td>
+    <td class="px-4 py-2 text-right">112.5</td>
+</tr>
+<tr>
+    <td class="px-4 py-2">34</td>
+    <td class="px-4 py-2 text-blue-400 font-semibold">LONG</td>
+    <td class="px-4 py-2">R1</td>
+    <td class="px-4 py-2">2024-12-21 08:45:00</td>
+    <td class="px-4 py-2 text-right">98601.70</td>
+    <td class="px-4 py-2">2024-12-30 14:30:00</td>
+    <td class="px-4 py-2 text-right">92272.60</td>
+    <td class="px-4 py-2">SL</td>
+    <td class="px-4 py-2 text-right negative">-49.12</td>
+    <td class="px-4 py-2 text-right negative">-6.42%</td>
+    <td class="px-4 py-2 text-right">1.12</td>
+    <td class="px-4 py-2 text-right">221.8</td>
+</tr>
+
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="text-center text-sm text-gray-500 py-4">
+            <p>Generated by Vegas ADX Backtesting System</p>
+            <p>© 2025 Production-Grade Backtesting Engine</p>
+        </div>
+    </div>
+
+    <script>
+        // Equity Chart
+        var equityData = [{
+    x: [
+  "2024-01-01T00:00:00",
+  "2024-01-11T10:00:00",
+  "2024-01-21T20:00:00",
+  "2024-02-01T06:00:00",
+  "2024-02-11T16:00:00",
+  "2024-02-22T02:00:00",
+  "2024-03-03T12:00:00",
+  "2024-03-13T22:00:00",
+  "2024-03-24T08:00:00",
+  "2024-04-03T18:00:00",
+  "2024-04-14T04:00:00",
+  "2024-04-24T14:00:00",
+  "2024-05-05T00:00:00",
+  "2024-05-15T10:00:00",
+  "2024-05-25T20:00:00",
+  "2024-06-05T06:00:00",
+  "2024-06-15T16:00:00",
+  "2024-06-26T02:00:00",
+  "2024-07-06T12:00:00",
+  "2024-07-16T22:00:00",
+  "2024-07-27T08:00:00",
+  "2024-08-06T18:00:00",
+  "2024-08-17T04:00:00",
+  "2024-08-27T14:00:00",
+  "2024-09-07T00:00:00",
+  "2024-09-17T10:00:00",
+  "2024-09-27T20:00:00",
+  "2024-10-08T06:00:00",
+  "2024-10-18T16:00:00",
+  "2024-10-29T02:00:00",
+  "2024-11-08T12:00:00",
+  "2024-11-18T22:00:00",
+  "2024-11-29T08:00:00",
+  "2024-12-09T18:00:00",
+  "2024-12-20T04:00:00",
+  "2024-12-30T14:00:00",
+  "2024-12-31T00:00:00"
+],
+    y: [
+  10000.0,
+  10000.0,
+  9954.334744146876,
+  10001.756741931127,
+  10096.05973435107,
+  10096.05973435107,
+  10307.686742836357,
+  10413.073898425826,
+  10413.073898425826,
+  10413.073898425826,
+  10564.787680385223,
+  10521.817562539292,
+  10472.923251910708,
+  10582.279232299525,
+  10582.279232299525,
+  10601.905797335945,
+  10509.688598851611,
+  10454.571733424102,
+  10350.467342454316,
+  10346.751652970064,
+  10346.751652970064,
+  10357.750596181835,
+  10357.750596181835,
+  10362.52575512106,
+  10274.526342226087,
+  10321.485018982536,
+  10321.485018982536,
+  10512.623036730778,
+  10581.441758502262,
+  10717.768697705616,
+  10672.075661084522,
+  10672.075661084522,
+  10697.348927840554,
+  10697.348927840554,
+  10806.488820226054,
+  10806.488820226054,
+  10757.367124819124
+],
+    type: 'scatter',
+    mode: 'lines',
+    line: { color: '#089981', width: 2 },
+    fill: 'tozeroy',
+    fillcolor: 'rgba(8, 153, 129, 0.1)'
+}];
+var equityLayout = {
+    paper_bgcolor: '#1e222d',
+    plot_bgcolor: '#1e222d',
+    font: { color: '#d1d4dc' },
+    xaxis: { gridcolor: '#2a2e39', showgrid: true },
+    yaxis: { gridcolor: '#2a2e39', showgrid: true, title: 'Balance (USDT)' },
+    margin: { l: 60, r: 20, t: 20, b: 60 }
+};
+Plotly.newPlot('equityChart', equityData, equityLayout, {responsive: true, displayModeBar: false});
+
+
+        // Drawdown Chart
+        var drawdownData = [{
+    x: [
+  "2024-01-01T00:00:00",
+  "2024-01-11T10:00:00",
+  "2024-01-21T20:00:00",
+  "2024-02-01T06:00:00",
+  "2024-02-11T16:00:00",
+  "2024-02-22T02:00:00",
+  "2024-03-03T12:00:00",
+  "2024-03-13T22:00:00",
+  "2024-03-24T08:00:00",
+  "2024-04-03T18:00:00",
+  "2024-04-14T04:00:00",
+  "2024-04-24T14:00:00",
+  "2024-05-05T00:00:00",
+  "2024-05-15T10:00:00",
+  "2024-05-25T20:00:00",
+  "2024-06-05T06:00:00",
+  "2024-06-15T16:00:00",
+  "2024-06-26T02:00:00",
+  "2024-07-06T12:00:00",
+  "2024-07-16T22:00:00",
+  "2024-07-27T08:00:00",
+  "2024-08-06T18:00:00",
+  "2024-08-17T04:00:00",
+  "2024-08-27T14:00:00",
+  "2024-09-07T00:00:00",
+  "2024-09-17T10:00:00",
+  "2024-09-27T20:00:00",
+  "2024-10-08T06:00:00",
+  "2024-10-18T16:00:00",
+  "2024-10-29T02:00:00",
+  "2024-11-08T12:00:00",
+  "2024-11-18T22:00:00",
+  "2024-11-29T08:00:00",
+  "2024-12-09T18:00:00",
+  "2024-12-20T04:00:00",
+  "2024-12-30T14:00:00",
+  "2024-12-31T00:00:00"
+],
+    y: [
+  -0.0,
+  -0.0,
+  -0.45665255853124104,
+  -0.0,
+  -0.0,
+  -0.0,
+  -0.0,
+  -0.0,
+  -0.0,
+  -0.0,
+  -0.0,
+  -0.40672959216880405,
+  -0.8695340716129322,
+  -0.0,
+  -0.0,
+  -0.0,
+  -0.8698171842604553,
+  -1.3896941429989453,
+  -2.3716344937229157,
+  -2.406681866858278,
+  -2.406681866858278,
+  -2.3029369041881256,
+  -2.3029369041881256,
+  -2.2578963328936275,
+  -3.087930239788796,
+  -2.645003490069433,
+  -2.645003490069433,
+  -0.8421387844023474,
+  -0.1930222662308993,
+  -0.0,
+  -0.4263297511811031,
+  -0.4263297511811031,
+  -0.19052258395381919,
+  -0.19052258395381919,
+  -0.0,
+  -0.0,
+  -0.45455740735131794
+],
+    type: 'scatter',
+    mode: 'lines',
+    line: { color: '#f23645', width: 2 },
+    fill: 'tozeroy',
+    fillcolor: 'rgba(242, 54, 69, 0.2)'
+}];
+var drawdownLayout = {
+    paper_bgcolor: '#1e222d',
+    plot_bgcolor: '#1e222d',
+    font: { color: '#d1d4dc' },
+    xaxis: { gridcolor: '#2a2e39', showgrid: true },
+    yaxis: { gridcolor: '#2a2e39', showgrid: true, title: 'Drawdown (%)', ticksuffix: '%' },
+    margin: { l: 60, r: 20, t: 20, b: 60 }
+};
+Plotly.newPlot('drawdownChart', drawdownData, drawdownLayout, {responsive: true, displayModeBar: false});
+
+
+        // Monthly Heatmap
+        var heatmapData = [{
+    z: [
+  [
+    0.016485846794667688,
+    4.038568743943684,
+    1.8640644449544677,
+    -1.2786755748142526,
+    1.2264956235556022,
+    -1.8783895948370817,
+    -0.4038439730155304,
+    -0.3602466928664197,
+    1.82903478471525,
+    1.5905065139968917,
+    0.25273266756032126,
+    0.5664208488860255
+  ]
+],
+    x: [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec"
+],
+    y: [
+  "2024"
+],
+    type: 'heatmap',
+    colorscale: [
+        [0, '#f23645'],
+        [0.5, '#2a2e39'],
+        [1, '#089981']
+    ],
+    zmid: 0,
+    text: [
+  [
+    0.016485846794667688,
+    4.038568743943684,
+    1.8640644449544677,
+    -1.2786755748142526,
+    1.2264956235556022,
+    -1.8783895948370817,
+    -0.4038439730155304,
+    -0.3602466928664197,
+    1.82903478471525,
+    1.5905065139968917,
+    0.25273266756032126,
+    0.5664208488860255
+  ]
+],
+    texttemplate: '%{z:.1f}%',
+    textfont: { size: 10 },
+    hovertemplate: '%{y}-%{x}: %{z:.2f}%<extra></extra>'
+}];
+var heatmapLayout = {
+    paper_bgcolor: '#1e222d',
+    plot_bgcolor: '#1e222d',
+    font: { color: '#d1d4dc' },
+    xaxis: { side: 'top' },
+    yaxis: { autorange: 'reversed' },
+    margin: { l: 60, r: 20, t: 60, b: 20 }
+};
+Plotly.newPlot('monthlyHeatmap', heatmapData, heatmapLayout, {responsive: true, displayModeBar: false});
+
+    </script>
+</body>
+</html>

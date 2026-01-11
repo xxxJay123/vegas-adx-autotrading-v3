@@ -1,0 +1,448 @@
+//@version=6
+// 修改：加入了 calc_on_every_tick=true 以解決實時表格顯示問題
+strategy("Vegas+ADX 永續合約策略 v3.1 (Fixed)", pyramiding=2, default_qty_type=strategy.percent_of_equity, default_qty_value=100, initial_capital=1000, commission_type=strategy.commission.percent, commission_value=0.05, max_bars_back=5000, calc_on_every_tick=true)
+
+//================================================== EMA 設置 ==================================================
+groupEMA1 = "EMA12 設置"
+groupEMA2 = "EMA144 設置"
+groupEMA3 = "EMA169 設置"
+groupEMA4 = "EMA576 設置"
+groupEMA5 = "EMA676 設置"
+
+enableEMA1 = input.bool(false, "禁用 EMA12", group=groupEMA1)
+enableEMA2 = input.bool(false, "禁用 EMA144", group=groupEMA2)
+enableEMA3 = input.bool(false, "禁用 EMA169", group=groupEMA3)
+enableEMA4 = input.bool(false, "禁用 EMA576", group=groupEMA4)
+enableEMA5 = input.bool(false, "禁用 EMA676", group=groupEMA5)
+
+Length1 = input.int(12, "EMA 週期", group=groupEMA1)
+Length2 = input.int(144, "EMA 週期", group=groupEMA2)
+Length3 = input.int(169, "EMA 週期", group=groupEMA3)
+Length4 = input.int(576, "EMA 週期", group=groupEMA4)
+Length5 = input.int(676, "EMA 週期", group=groupEMA5)
+
+// 計算 EMA 值
+emaValue1 = enableEMA1 ? na : ta.ema(close, Length1)
+emaValue2 = enableEMA2 ? na : ta.ema(close, Length2)
+emaValue3 = enableEMA3 ? na : ta.ema(close, Length3)
+emaValue4 = enableEMA4 ? na : ta.ema(close, Length4)
+emaValue5 = enableEMA5 ? na : ta.ema(close, Length5)
+
+//繪製EMA
+plot(emaValue1, "EMA1", color=color.white, force_overlay = true)
+plot(emaValue2, "EMA2", color=#ec407a, force_overlay = true)
+plot(emaValue3, "EMA3", color=#f48fb1, force_overlay = true)
+plot(emaValue4, "EMA4", color=#5b9cf6, force_overlay = true)
+plot(emaValue5, "EMA5", color=#1848cc, force_overlay = true)
+
+//================================================== ADX 指標設置 ==================================================
+groupADX = "ADX 指標設置"
+adxLen = input.int(14, "ADX 週期", group=groupADX)
+adxThreshold = input.float(38, "ADX 最小閾值", minval=0, tooltip="趨勢存在的最小ADX值", group=groupADX)
+adxMaxThreshold = input.float(65, "ADX 最   大閾值", minval=0, tooltip="避免趨勢過度延伸", group=groupADX)
+adxRequireSlopeUp = input.bool(true, "要求 ADX 上升", tooltip="只在ADX上升時入場", group=groupADX)
+
+// ADX 計算
+TrueRange = math.max(math.max(high - low, math.abs(high - nz(close[1]))), math.abs(low - nz(close[1])))
+DirectionalMovementPlus = ta.change(high) > ta.change(low) ? math.max(ta.change(high), 0) : 0
+DirectionalMovementMinus = ta.change(low) > ta.change(high) ? math.max(-ta.change(low), 0) : 0
+
+var SmoothedTrueRange = 0.0
+SmoothedTrueRange := nz(SmoothedTrueRange[1]) - (nz(SmoothedTrueRange[1]) / adxLen) + TrueRange
+
+var SmoothedDirectionalMovementPlus = 0.0
+SmoothedDirectionalMovementPlus := nz(SmoothedDirectionalMovementPlus[1]) - (nz(SmoothedDirectionalMovementPlus[1]) / adxLen) + DirectionalMovementPlus
+
+var SmoothedDirectionalMovementMinus = 0.0
+SmoothedDirectionalMovementMinus := nz(SmoothedDirectionalMovementMinus[1]) - (nz(SmoothedDirectionalMovementMinus[1]) / adxLen) + DirectionalMovementMinus
+
+DIPlus = SmoothedDirectionalMovementPlus / SmoothedTrueRange * 100
+DIMinus = SmoothedDirectionalMovementMinus / SmoothedTrueRange * 100
+DX = math.abs(DIPlus - DIMinus) / (DIPlus + DIMinus) * 100
+ADX = ta.sma(DX, adxLen)
+adxSlope = ADX - ADX[1]
+
+// 繪製 ADX 指標（獨立面板）
+plot(ADX, "ADX", color=color.aqua)
+hline(adxThreshold, "ADX 最小閾值", color=color.white, linestyle=hline.style_dashed)
+hline(adxMaxThreshold, "ADX 最大閾值", color=color.orange, linestyle=hline.style_dashed)
+
+//================================================== 成交量過濾器 ==================================================
+groupVolume = "成交量過濾器"
+volumeAvgPeriod = input.int(20, "成交量平均週期", minval=1, group=groupVolume)
+volumeSpikeRatio = input.float(2.0, "成交量異常倍數", minval=1.0, tooltip="避免異常成交量時入場", group=groupVolume)
+
+avgVolume = ta.sma(volume, volumeAvgPeriod)
+
+//================================================== 風險管理 ==================================================
+groupRisk = "風險管理"
+// 修改注意：止損回看改為 10，槓桿改為 20，確保訂單能成交
+stopLookback = input.int(10, "止損回看週期", minval=5, tooltip="計算止損點的K線數量", group=groupRisk)
+rewardRatio = input.float(2.0, "盈虧比", minval=1.0, step=0.1, tooltip="盈利目標 = 止損距離 × 盈虧比", group=groupRisk)
+leverage = input.int(20, "槓桿倍數", minval=1, maxval=125, tooltip="永續合約槓桿倍數", group=groupRisk)
+fixedNotional = input.float(100, "固定保證金 (USDT)", minval=10, tooltip="每筆交易的保證金大小", group=groupRisk)
+minStopDistancePercent = input.float(0.5, "最小止損距離 (%)", minval=0.1, maxval=5, step=0.1, tooltip="止損距離必須大於此百分比", group=groupRisk)
+liquidationBuffer = input.float(0.5, "清算緩衝 (%)", minval=0.1, maxval=2, step=0.1, tooltip="距離清算價的安全緩衝", group=groupRisk)
+
+//================================================== 型態檢測 ==================================================
+groupPattern = "型態檢測"
+pattern2BLookback = input.int(30, "2B 型態回看週期", minval=5, group=groupPattern)
+patternDoubleLookback = input.int(30, "雙頂/底回看週期", minval=5, group=groupPattern)
+
+//================================================== 做多規則開關 ==================================================
+groupLongRules = "做多規則"
+longR1Enable = input.bool(true, "規則1: 主要支撐首次反彈", tooltip="觸碰576/676後第1次穿越EMA12", group=groupLongRules)
+longR2Enable = input.bool(false, "規則2: 主要支撐二次反彈", tooltip="觸碰576/676後第2次穿越EMA12", group=groupLongRules)
+longR3Enable = input.bool(true, "規則3: 中期支撐+2B型態", tooltip="觸碰144/169後第1次穿越EMA12且有2B", group=groupLongRules)
+longR4Enable = input.bool(false, "規則4: 中期支撐二次反彈", tooltip="觸碰144/169後第2次穿越EMA12", group=groupLongRules)
+longR5Enable = input.bool(true, "規則5: 回調再穿越", tooltip="在EMA12上方回調後再次穿越", group=groupLongRules)
+longR6Enable = input.bool(false, "規則6: 逆勢雙底", tooltip="下跌趨勢中的雙底+2B", group=groupLongRules)
+longR7Enable = input.bool(true, "規則7: 黃金交叉回調", tooltip="144>169且價格回調後穿越EMA12", group=groupLongRules)
+longR8Enable = input.bool(true, "規則8: 逆勢中期反彈", tooltip="下跌趨勢中EMA12在中間區域", group=groupLongRules)
+
+//================================================== 做空規則開關 ==================================================
+groupShortRules = "做空規則"
+shortR1Enable = input.bool(false, "規則1: 主要阻力首次反彈", tooltip="觸碰576/676後第1次穿越EMA12", group=groupShortRules)
+shortR2Enable = input.bool(true, "規則2: 主要阻力二次反彈", tooltip="觸碰576/676後第2次穿越EMA12", group=groupShortRules)
+shortR3Enable = input.bool(true, "規則3: 中期阻力+2B型態", tooltip="觸碰144/169後第1次穿越EMA12且有2B", group=groupShortRules)
+shortR4Enable = input.bool(false, "規則4: 中期阻力二次反彈", tooltip="觸碰144/169後第2次穿越EMA12", group=groupShortRules)
+shortR5Enable = input.bool(true, "規則5: 回調再穿越", tooltip="在EMA12下方回調後再次穿越", group=groupShortRules)
+shortR6Enable = input.bool(false, "規則6: 逆勢雙頂", tooltip="上升趨勢中的雙頂+2B", group=groupShortRules)
+shortR7Enable = input.bool(false, "規則7: 死亡交叉回調", tooltip="144<169且價格回調後穿越EMA12", group=groupShortRules)
+shortR8Enable = input.bool(true, "規則8: 逆勢中期反彈", tooltip="上升趨勢中EMA12在中間區域", group=groupShortRules)
+
+//================================================== 顯示設置 ==================================================
+groupDisplay = "顯示設置"
+showSignals = input.bool(true, "顯示入場信號", group=groupDisplay)
+showExits = input.bool(true, "顯示出場標記", group=groupDisplay)
+showStopLines = input.bool(true, "顯示止損/目標線", group=groupDisplay)
+showTable = input.bool(true, "顯示績效表格", group=groupDisplay)
+showBackground = input.bool(true, "顯示趨勢背景", group=groupDisplay)
+showLiquidation = input.bool(true, "顯示清算價", group=groupDisplay)
+
+//================================================== 永續合約倉位計算函數 ==================================================
+
+// 計算合約數量（名義價值 / 價格）
+calcContractQty(entryPrice) =>
+    notionalValue = fixedNotional * leverage  // 名義價值 = 保證金 × 槓桿
+    notionalValue / entryPrice
+
+// 計算做多清算價（簡化公式，不含資金費率）
+calcLongLiquidationPrice(entryPrice) =>
+    maintMarginRate = 0.005  // 0.5% 維持保證金率
+    entryPrice * (1 - (1 / leverage) + maintMarginRate)
+
+// 計算做空清算價
+calcShortLiquidationPrice(entryPrice) =>
+    maintMarginRate = 0.005  // 0.5% 維持保證金率
+    entryPrice * (1 + (1 / leverage) - maintMarginRate)
+
+// // 檢查止損是否在清算價之前（安全檢查）
+// isStopSafeForLong(stopPrice, liquidationPrice) =>
+//     stopPrice > liquidationPrice * (1 + liquidationBuffer / 100)
+
+isStopSafeForShort(stopPrice, liquidationPrice) =>
+    stopPrice < liquidationPrice * (1 - liquidationBuffer / 100)
+
+//================================================== 預先計算全局變量 ==================================================
+
+// 趨勢檢測
+isGoldenCross = emaValue2 > emaValue3
+isDeathCross = emaValue2 < emaValue3
+isBullTrend = close > emaValue2 and emaValue2 > emaValue3
+isBearTrend = close < emaValue2 and emaValue2 < emaValue3
+hasBullishStructure = close > emaValue2 and isGoldenCross
+hasBearishStructure = close < emaValue2 and isDeathCross
+
+// EMA12 穿越檢測
+isBullishCrossEma12 = ta.crossover(close, emaValue1)
+isBearishCrossEma12 = ta.crossunder(close, emaValue1)
+
+// EMA12 中間區域
+isEma12InMiddleZone = (emaValue1 > emaValue2 and emaValue1 < emaValue4) or (emaValue1 < emaValue2 and emaValue1 > emaValue4)
+
+// 回調檢測
+detectPullbackDown = low[1] < emaValue1 or low[2] < emaValue1 or low[3] < emaValue1 or low[4] < emaValue1 or low[5] < emaValue1
+detectPullbackUp = high[1] > emaValue1 or high[2] > emaValue1 or high[3] > emaValue1 or high[4] > emaValue1 or high[5] > emaValue1
+
+// 2B 型態檢測
+lowestLow2B = ta.lowest(low[1], pattern2BLookback - 1)
+detect2BPatternBullish = low < lowestLow2B and close > lowestLow2B
+
+highestHigh2B = ta.highest(high[1], pattern2BLookback - 1)
+detect2BPatternBearish = high > highestHigh2B and close < highestHigh2B
+
+// 雙底/雙頂檢測
+var float prevLow = na
+var float prevHigh = na
+
+detectDoubleBottom = false
+if bar_index >= patternDoubleLookback
+    currentLow = low[patternDoubleLookback / 2]
+    leftLower = true
+    rightLower = true
+
+    for i = 1 to 3
+        if currentLow >= low[patternDoubleLookback / 2 - i]
+            leftLower := false
+        if currentLow >= low[patternDoubleLookback / 2 + i]
+            rightLower := false
+
+    if leftLower and rightLower
+        if not na(prevLow) and math.abs(currentLow - prevLow) / prevLow < 0.02
+            detectDoubleBottom := true
+        prevLow := currentLow
+
+detectDoubleTop = false
+if bar_index >= patternDoubleLookback
+    currentHigh = high[patternDoubleLookback / 2]
+    leftHigher = true
+    rightHigher = true
+
+    for i = 1 to 3
+        if currentHigh <= high[patternDoubleLookback / 2 - i]
+            leftHigher := false
+        if currentHigh <= high[patternDoubleLookback / 2 + i]
+            rightHigher := false
+
+    if leftHigher and rightHigher
+        if not na(prevHigh) and math.abs(currentHigh - prevHigh) / prevHigh < 0.02
+            detectDoubleTop := true
+        prevHigh := currentHigh
+
+// 觸碰檢測
+var int lastTouchMinLongEmas = 0
+var int lastTouchMaxShortEmas = 0
+var int lastTouchMinMidEmas = 0
+var int lastTouchMaxMidEmas = 0
+var int crossCountAfterTouchLong = 0
+var int crossCountAfterTouchShort = 0
+var int crossCountAfterMidTouchLong = 0
+var int crossCountAfterMidTouchShort = 0
+var bool wasAboveEma12 = false
+var bool wasBelowEma12 = false
+
+minLongEmas = math.min(emaValue4, emaValue5)
+maxShortEmas = math.max(emaValue4, emaValue5)
+minMidEmas = math.min(emaValue2, emaValue3)
+maxMidEmas = math.max(emaValue2, emaValue3)
+
+if low <= minLongEmas
+    lastTouchMinLongEmas := bar_index
+    crossCountAfterTouchLong := 0
+
+if high >= maxShortEmas
+    lastTouchMaxShortEmas := bar_index
+    crossCountAfterTouchShort := 0
+
+if low <= minMidEmas
+    lastTouchMinMidEmas := bar_index
+    crossCountAfterMidTouchLong := 0
+
+if high >= maxMidEmas
+    lastTouchMaxMidEmas := bar_index
+    crossCountAfterMidTouchShort := 0
+
+if isBullishCrossEma12
+    if lastTouchMinLongEmas > 0
+        crossCountAfterTouchLong += 1
+    if lastTouchMinMidEmas > 0
+        crossCountAfterMidTouchLong += 1
+
+if isBearishCrossEma12
+    if lastTouchMaxShortEmas > 0
+        crossCountAfterTouchShort += 1
+    if lastTouchMaxMidEmas > 0
+        crossCountAfterMidTouchShort += 1
+
+if close > emaValue1
+    wasAboveEma12 := true
+else
+    wasAboveEma12 := false
+
+if close < emaValue1
+    wasBelowEma12 := true
+else
+    wasBelowEma12 := false
+
+// 動量確認
+hasMomentumConfirmation = emaValue1 > emaValue2 and close > emaValue2
+hasMomentumConfirmationShort = emaValue1 < emaValue2 and close < emaValue2
+
+//================================================== 通用過濾器 ==================================================
+adxInRange = ADX >= adxThreshold and ADX <= adxMaxThreshold
+adxSlopeOk = not adxRequireSlopeUp or adxSlope > 0
+noVolumeSpike = volume <= avgVolume * volumeSpikeRatio
+passesCommonFilters = adxInRange and adxSlopeOk and noVolumeSpike
+
+//================================================== 規則邏輯定義 (補回遺漏部分) ==================================================
+checkLongRule1 = lastTouchMinLongEmas > 0 and crossCountAfterTouchLong == 1 and isBullishCrossEma12 and hasBullishStructure and hasMomentumConfirmation
+checkLongRule2 = lastTouchMinLongEmas > 0 and crossCountAfterTouchLong == 2 and isBullishCrossEma12 and close > emaValue2
+checkLongRule3 = lastTouchMinMidEmas > 0 and crossCountAfterMidTouchLong == 1 and isBullishCrossEma12 and detect2BPatternBullish and hasBullishStructure
+checkLongRule4 = lastTouchMinMidEmas > 0 and crossCountAfterMidTouchLong == 2 and isBullishCrossEma12 and hasBullishStructure
+checkLongRule5 = wasAboveEma12 and detectPullbackDown and isBullishCrossEma12 and isBullTrend
+checkLongRule6 = isBearTrend and detectDoubleBottom and detect2BPatternBullish and isBullishCrossEma12
+checkLongRule7 = isGoldenCross and detectPullbackDown and isBullishCrossEma12 and close > emaValue2 and emaValue1 > emaValue2
+checkLongRule8 = isBearTrend and isEma12InMiddleZone and lastTouchMinMidEmas > 0 and crossCountAfterMidTouchLong >= 2 and isBullishCrossEma12
+
+checkShortRule1 = lastTouchMaxShortEmas > 0 and crossCountAfterTouchShort == 1 and isBearishCrossEma12 and hasBearishStructure and hasMomentumConfirmationShort
+checkShortRule2 = lastTouchMaxShortEmas > 0 and crossCountAfterTouchShort == 2 and isBearishCrossEma12 and close < emaValue2
+checkShortRule3 = lastTouchMaxMidEmas > 0 and crossCountAfterMidTouchShort == 1 and isBearishCrossEma12 and detect2BPatternBearish and hasBearishStructure
+checkShortRule4 = lastTouchMaxMidEmas > 0 and crossCountAfterMidTouchShort == 2 and isBearishCrossEma12 and hasBearishStructure
+checkShortRule5 = wasBelowEma12 and detectPullbackUp and isBearishCrossEma12 and isBearTrend
+checkShortRule6 = isBullTrend and detectDoubleTop and detect2BPatternBearish and isBearishCrossEma12
+checkShortRule7 = isDeathCross and detectPullbackUp and isBearishCrossEma12 and close < emaValue2 and emaValue1 < emaValue2
+checkShortRule8 = isBullTrend and isEma12InMiddleZone and lastTouchMaxMidEmas > 0 and crossCountAfterMidTouchShort >= 2 and isBearishCrossEma12
+
+//================================================== 入場邏輯 ==================================================
+longSignal = passesCommonFilters and ((longR1Enable and checkLongRule1) or (longR2Enable and checkLongRule2) or (longR3Enable and checkLongRule3) or (longR4Enable and checkLongRule4) or (longR5Enable and checkLongRule5) or (longR6Enable and checkLongRule6) or (longR7Enable and checkLongRule7) or (longR8Enable and checkLongRule8))
+
+shortSignal = passesCommonFilters and ((shortR1Enable and checkShortRule1) or (shortR2Enable and checkShortRule2) or (shortR3Enable and checkShortRule3) or (shortR4Enable and checkShortRule4) or (shortR5Enable and checkShortRule5) or (shortR6Enable and checkShortRule6) or (shortR7Enable and checkShortRule7) or (shortR8Enable and checkShortRule8))
+
+//================================================== 倉位管理 ==================================================
+longStopPrice = ta.lowest(low, stopLookback)
+shortStopPrice = ta.highest(high, stopLookback)
+
+var float activeLongStop = na
+var float activeLongTarget = na
+var float activeShortStop = na
+var float activeShortTarget = na
+var float activeLongLiquidation = na
+var float activeShortLiquidation = na
+var float activeEntryPrice = na
+
+// 做多入場
+if longSignal and strategy.position_size == 0
+    stopPrice = longStopPrice
+    stopDist = close - stopPrice
+    stopPercent = stopDist / close * 100
+    
+    // 計算清算價
+    liquidationPrice = calcLongLiquidationPrice(close)
+    
+    // 檢查止損是否安全（在清算價之上）
+    // stopIsSafe = isStopSafeForLong(stopPrice, liquidationPrice)
+
+    if stopDist > 0 and stopPercent >= minStopDistancePercent 
+    // and stopIsSafe
+        targetPrice = close + (stopDist * rewardRatio)
+        
+        // 計算合約數量（使用槓桿）
+        contractQty = calcContractQty(close)
+
+        activeLongStop := stopPrice
+        activeLongTarget := targetPrice
+        activeLongLiquidation := liquidationPrice
+        activeEntryPrice := close
+
+        strategy.entry("多單", strategy.long, qty=contractQty, comment="做多 " + str.tostring(leverage) + "x SL:" + str.tostring(math.round(stopPercent, 2)) + "%")
+        strategy.exit("多單出場", "多單", limit=targetPrice, stop=stopPrice, comment="多單出場")
+
+// 做空入場
+if shortSignal and strategy.position_size == 0
+    stopPrice = shortStopPrice
+    stopDist = stopPrice - close
+    stopPercent = stopDist / close * 100
+    
+    // 計算清算價
+    liquidationPrice = calcShortLiquidationPrice(close)
+    
+    // 檢查止損是否安全（在清算價之下）
+    stopIsSafe = isStopSafeForShort(stopPrice, liquidationPrice)
+
+    if stopDist > 0 and stopPercent >= minStopDistancePercent and stopIsSafe
+        targetPrice = close - (stopDist * rewardRatio)
+        
+        // 計算合約數量（使用槓桿）
+        contractQty = calcContractQty(close)
+
+        activeShortStop := stopPrice
+        activeShortTarget := targetPrice
+        activeShortLiquidation := liquidationPrice
+        activeEntryPrice := close
+
+        strategy.entry("空單", strategy.short, qty=contractQty, comment="做空 " + str.tostring(leverage) + "x SL:" + str.tostring(math.round(stopPercent, 2)) + "%")
+        strategy.exit("空單出場", "空單", limit=targetPrice, stop=stopPrice, comment="空單出場")
+
+// 清除持倉變量
+if strategy.position_size == 0
+    activeLongStop := na
+    activeLongTarget := na
+    activeShortStop := na
+    activeShortTarget := na
+    activeLongLiquidation := na
+    activeShortLiquidation := na
+    activeEntryPrice := na
+
+//================================================== 視覺化 ==================================================
+plotshape(showSignals and longSignal and barstate.isconfirmed, "買入信號", shape.triangleup, location.belowbar, color=color.new(color.green, 0), size=size.normal, text="買入", force_overlay=true)
+plotshape(showSignals and shortSignal and barstate.isconfirmed, "賣出信號", shape.triangledown, location.abovebar, color=color.new(color.red, 0), size=size.normal, text="賣出", force_overlay=true)
+
+plotshape(strategy.position_size > 0 and strategy.position_size[1] == 0, "做多入場", shape.labelup, location.belowbar, color=color.new(color.lime, 0), size=size.small, text="多單入場", textcolor=color.white, force_overlay = true)
+plotshape(strategy.position_size < 0 and strategy.position_size[1] == 0, "做空入場", shape.labeldown, location.abovebar, color=color.new(color.red, 0), size=size.small, text="空單入場", textcolor=color.white, force_overlay = true)
+
+plotshape(strategy.position_size[1] > 0 and strategy.position_size == 0, "多單出場", shape.labeldown, location.abovebar, color=color.new(color.orange, 0), size=size.small, text="多單出場", textcolor=color.white, force_overlay = true)
+plotshape(strategy.position_size[1] < 0 and strategy.position_size == 0, "空單出場", shape.labelup, location.belowbar, color=color.new(color.orange, 0), size=size.small, text="空單出場", textcolor=color.white, force_overlay = true)
+
+var float currentStop = na
+var float currentTarget = na
+var float currentLiquidation = na
+
+if strategy.position_size > 0
+    currentStop := activeLongStop
+    currentTarget := activeLongTarget
+    currentLiquidation := activeLongLiquidation
+else if strategy.position_size < 0
+    currentStop := activeShortStop
+    currentTarget := activeShortTarget
+    currentLiquidation := activeShortLiquidation
+else
+    currentStop := na
+    currentTarget := na
+    currentLiquidation := na
+
+plot(showStopLines ? currentStop : na, "止損線", color=color.red, style=plot.style_linebr, linewidth=2, force_overlay=true)
+plot(showStopLines ? currentTarget : na, "目標線", color=color.green, style=plot.style_linebr, linewidth=2, force_overlay=true)
+plot(showLiquidation ? currentLiquidation : na, "清算價", color=color.fuchsia, style=plot.style_linebr, linewidth=1, force_overlay=true)
+
+bgcolor(showBackground and isGoldenCross ? color.new(color.green, 95) : showBackground and isDeathCross ? color.new(color.red, 95) : na)
+
+//================================================== 績效表格 ==================================================
+if showTable and barstate.islast
+    var table performanceTable = table.new(position.top_right, 4, 5, border_width=1, force_overlay=true)
+
+    winRate = strategy.closedtrades > 0 ? (strategy.wintrades / strategy.closedtrades * 100) : 0
+    netProfit = strategy.netprofit
+    netProfitPercent = strategy.initial_capital > 0 ? (netProfit / strategy.initial_capital * 100) : 0
+
+    table.cell(performanceTable, 0, 0, "總交易次數", bgcolor=color.new(color.blue, 80), text_color=color.white, text_size=size.small)
+    table.cell(performanceTable, 1, 0, str.tostring(strategy.closedtrades), bgcolor=color.new(color.blue, 90), text_color=color.white, text_size=size.small)
+
+    table.cell(performanceTable, 0, 1, "勝率", bgcolor=color.new(color.blue, 80), text_color=color.white, text_size=size.small)
+    table.cell(performanceTable, 1, 1, str.tostring(math.round(winRate, 2)) + "%", bgcolor=winRate >= 50 ? color.new(color.green, 80) : color.new(color.red, 80), text_color=color.white, text_size=size.small)
+
+    table.cell(performanceTable, 0, 2, "淨利潤", bgcolor=color.new(color.blue, 80), text_color=color.white, text_size=size.small)
+    table.cell(performanceTable, 1, 2, "$" + str.tostring(math.round(netProfit, 2)), bgcolor=netProfit >= 0 ? color.new(color.green, 80) : color.new(color.red, 80), text_color=color.white, text_size=size.small)
+
+    table.cell(performanceTable, 0, 3, "回報率", bgcolor=color.new(color.blue, 80), text_color=color.white, text_size=size.small)
+    table.cell(performanceTable, 1, 3, str.tostring(math.round(netProfitPercent, 2)) + "%", bgcolor=netProfit >= 0 ? color.new(color.green, 80) : color.new(color.red, 80), text_color=color.white, text_size=size.small)
+
+    table.cell(performanceTable, 2, 0, "盈利筆數", bgcolor=color.new(color.green, 80), text_color=color.white, text_size=size.small)
+    table.cell(performanceTable, 3, 0, str.tostring(strategy.wintrades), bgcolor=color.new(color.green, 90), text_color=color.white, text_size=size.small)
+
+    table.cell(performanceTable, 2, 1, "虧損筆數", bgcolor=color.new(color.red, 80), text_color=color.white, text_size=size.small)
+    table.cell(performanceTable, 3, 1, str.tostring(strategy.losstrades), bgcolor=color.new(color.red, 90), text_color=color.white, text_size=size.small)
+
+    table.cell(performanceTable, 2, 2, "盈利因子", bgcolor=color.new(color.blue, 80), text_color=color.white, text_size=size.small)
+    profitFactor = strategy.grossloss != 0 ? math.abs(strategy.grossprofit / strategy.grossloss) : 0
+    table.cell(performanceTable, 3, 2, str.tostring(math.round(profitFactor, 2)), bgcolor=profitFactor >= 1 ? color.new(color.green, 80) : color.new(color.red, 80), text_color=color.white, text_size=size.small)
+
+    table.cell(performanceTable, 2, 3, "最大回撤", bgcolor=color.new(color.orange, 80), text_color=color.white, text_size=size.small)
+    table.cell(performanceTable, 3, 3, str.tostring(math.round(strategy.max_drawdown, 2)), bgcolor=color.new(color.red, 90), text_color=color.white, text_size=size.small)
+
+    // 新增槓桿資訊行
+    table.cell(performanceTable, 0, 4, "槓桿倍數", bgcolor=color.new(color.purple, 80), text_color=color.white, text_size=size.small)
+    table.cell(performanceTable, 1, 4, str.tostring(leverage) + "x", bgcolor=color.new(color.purple, 90), text_color=color.white, text_size=size.small)
+    
+    table.cell(performanceTable, 2, 4, "單筆保證金", bgcolor=color.new(color.purple, 80), text_color=color.white, text_size=size.small)
+    table.cell(performanceTable, 3, 4, "$" + str.tostring(fixedNotional), bgcolor=color.new(color.purple, 90), text_color=color.white, text_size=size.small)

@@ -1,0 +1,30 @@
+LOSING TRADE ANALYSIS REPORT
+============================================================
+Total Trades: 195
+Winning Trades: 68
+Losing Trades: 127
+Win Rate: 34.87%
+
+KEY FINDINGS:
+----------------------------------------
+  * WORST HOUR: 09:00 UTC has 85.7% loss rate (6 losses / 7 trades)
+  * WORST DAY: SATURDAY has 76.0% loss rate (19 losses / 25 trades)
+  * WORST RULE: LONG Rule 1 has 70.3% loss rate (64 losses / 91 trades, total PnL: 125.69 USDT)
+
+HOURLY LOSS RATES:
+Hour,TotalTrades,Losses,LossRate%
+6,17,14,82.35
+7,9,7,77.78
+8,16,9,56.25
+9,7,6,85.71
+10,13,11,84.62
+11,16,13,81.25
+12,14,10,71.43
+13,12,5,41.67
+14,13,6,46.15
+16,21,17,80.95
+18,13,9,69.23
+19,12,6,50.00
+20,14,5,35.71
+21,10,4,40.00
+22,8,5,62.50
